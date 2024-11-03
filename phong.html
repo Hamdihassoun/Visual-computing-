@@ -1,0 +1,159 @@
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X3D Shader Nodes</title>
+    <script src="http://x3dom.org/download/dev/x3dom.js"></script>
+    <link rel="stylesheet" href="http://x3dom.org/download/dev/x3dom.css">
+    <style>
+        X3D { 
+            padding: 0;
+            margin: 0;
+            border: none;
+            box-sizing: border-box;
+            width: 100%; height: 100%; 
+        }
+    </style>
+</head>
+<body>
+    <X3D>
+    <Scene>
+        <Viewpoint position="0 5.2 11.3" orientation="1.0 0.0 0.0 -0.33">
+        </Viewpoint> <!-- Camera -->
+        
+        <!-- Coordinate system with grid -->
+        <Shape DEF="CoordSys">
+            <Appearance sortKey="1">
+                <LineProperties linewidthScaleFactor="1">
+                </LineProperties> <!-- works only on *nix -->
+            </Appearance>
+            <LineSet>
+                <Coordinate point="-8 0.0 0.0, 14 0.0 0.0, 0.0 -6 0.0, 0.0 7 0.0, 0.0 0.0 -6, 0.0 0.0 7">
+                </Coordinate>
+                <Color color="1 0 0, 1 0 0, 0 1 0, 0 1 0, 0 0 1, 0 0 1">
+                </Color>
+            </LineSet>
+        </Shape>
+        <Group render="false"> <!-- make visible if needed -->
+            <Shape DEF="Grid" isPickable="false">
+                <Appearance sortKey="-1">
+                    <Material emissiveColor='0.5 0.5 0.5'>
+                    </Material>
+                </Appearance>
+                <Plane solid="false" size='20 10' 
+                       primType='LINES' subdivision='40 20'>
+                </Plane>
+            </Shape>
+        </Group>
+        <Transform rotation="1 0 0 -1.570796" render="true">
+            <Shape USE="Grid"></Shape>
+        </Transform>
+        <Transform rotation="0 1 0 -1.570796" render="false"> 
+            <Shape USE="Grid"></Shape>
+        </Transform>
+        
+        <!-- Uebungsaufgabe(n) -->
+        <Transform translation="-2.5 0 0">
+            <Shape>
+                <Appearance>
+                    <!--Material diffuseColor='0 0 1' specularColor='.9 .9 .9' shininess='0.9'>
+                    </Material-->
+                    <ImageTexture url="todo.jpg" DEF="tex"></ImageTexture>
+
+                    <!-- https://doc.x3dom.org/tutorials/lighting/customShader/index.html -->
+                    <ComposedShader>
+                    <field name='diffuseCol'  type='SFVec3f' value='0.1 0.1 1.0'></field>
+                    <field name='specularCol' type='SFVec3f' value='0.5 0.5 0.5'></field>
+                    <field name='tex'         type='SFInt32' value='0'></field>
+
+                    <ShaderPart type='VERTEX' DEF="spv">
+                        attribute vec3 position;
+                        attribute vec3 normal;
+                        attribute vec2 texcoord;
+                        
+                        uniform mat4 modelViewMatrix;
+                        uniform mat4 modelViewProjectionMatrix;
+                        uniform mat4 normalMatrix;
+                        
+                        varying vec3 vPosition;
+                        varying vec3 vNormal;
+                        varying vec2 vTexCoord;
+                        
+                        void main()
+                        {
+                            vPosition   = (modelViewMatrix * vec4(position, 1.0)).xyz;
+                            vNormal     = (normalMatrix    * vec4(normal,   0.0)).xyz;
+                            vTexCoord   = vec2(texcoord.x, 1.0 - texcoord.y);
+                            gl_Position = modelViewProjectionMatrix * vec4(position, 1.0);
+                        }
+                    </ShaderPart>
+
+                    <ShaderPart type='FRAGMENT' DEF="spf">
+                        #ifdef GL_FRAGMENT_PRECISION_HIGH
+                            precision highp float;
+                        #else
+                            precision mediump float;
+                        #endif
+                        
+                        //application-specific parameters
+                        uniform vec3 diffuseCol;
+                        uniform vec3 specularCol;
+                        uniform sampler2D tex;
+
+                        varying vec3 vPosition;
+                        varying vec3 vNormal;
+                        varying vec2 vTexCoord;
+
+                        void main()
+                        {
+                            vec3 view   = -normalize(vPosition);
+                            vec3 normal =  normalize(vNormal);
+                            //vec3 halfVec = normalize(light + view);
+
+                            const vec3  ambient   = vec3(0.1);               
+                            const float shininess = 64.0;
+
+                            vec4 texCol = texture2D(tex, vTexCoord);
+
+                            //since we use a headlight, lightVec = viewVec
+                            float NdotL   = max(dot(normal, view), 0.0);
+                            vec3  diffuse = diffuseCol * NdotL;
+                            //vec3  diffuse = texCol.rgb * NdotL;
+
+                            //since we use a headlight, halfVec = viewVec
+                            float powNdotH = pow(NdotL, shininess);
+                            vec3  specular = specularCol * powNdotH;
+                            
+                            vec3 color   = ambient + diffuse + specular;
+                            gl_FragColor = vec4(color, 1.0);
+                        }
+                    </ShaderPart>
+                    </ComposedShader>
+                </Appearance>
+                <Sphere></Sphere>
+            </Shape>
+        </Transform>
+
+        <Transform translation="2.5 0 0">
+            <Shape>
+                <Appearance>
+                    <!--Material diffuseColor='1 0 0' specularColor='.9 .9 .9' shininess='0.7'>
+                    </Material-->
+                    <ImageTexture USE="tex"></ImageTexture>
+                    
+                    <ComposedShader>
+                        <field name='diffuseCol'  type='SFVec3f' value='1.0 0.1 0.1'></field>
+                        <field name='specularCol' type='SFVec3f' value='0.3 0.3 0.3'></field>
+                        <field name='tex'         type='SFInt32' value='0'></field>
+
+                        <ShaderPart type='VERTEX' USE="spv"></ShaderPart>
+                        <ShaderPart type='VERTEX' USE="spf"></ShaderPart>
+                    </ComposedShader>
+                </Appearance>
+                <Box></Box>
+            </Shape>
+        </Transform>
+    </Scene>
+    </X3D>
+</body>
+</html>
